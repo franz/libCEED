@@ -426,7 +426,7 @@ endif
 HIP_LIB_PATH := $(firstword $(wildcard $(foreach d,lib lib64,$(HIP_DIR)/$d/libamdhip64.${SO_EXT} $(HIP_DIR)/$d/libCHIP.${SO_EXT})))
 HIP_LIB      := $(patsubst lib%.${SO_EXT},%,$(notdir $(HIP_LIB_PATH)))
 HIP_LIB_DIR  := $(patsubst %/,%,$(dir $(HIP_LIB_PATH)))
-HIP_BACKENDS = /gpu/hip/ref # /gpu/hip/shared /gpu/hip/gen 
+HIP_BACKENDS = /gpu/hip/shared # /gpu/hip/shared /gpu/hip/gen 
 ifneq ($(HIP_LIB_DIR),)
   $(libceeds) : HIPCCFLAGS += -I./include
   ifneq ($(CXX), $(HIPCC))

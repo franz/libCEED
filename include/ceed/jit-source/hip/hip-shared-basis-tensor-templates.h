@@ -20,13 +20,15 @@
 // 1D tensor contraction x
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractX1d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractX1d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
   data.slice[data.t_id_x] = *U;
   __syncthreads();
-  *V = 0.0;
-  if (data.t_id_x < Q_1D) {
-    for (CeedInt i = 0; i < P_1D; i++) {
-      *V += B[i + data.t_id_x * P_1D] * data.slice[i];  // Contract x direction
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z) {
+    *V = 0.0;
+    if (data.t_id_x < Q_1D) {
+      for (CeedInt i = 0; i < P_1D; i++) {
+        *V += B[i + data.t_id_x * P_1D] * data.slice[i];  // Contract x direction
+      }
     }
   }
   __syncthreads();
@@ -36,15 +38,18 @@ inline __device__ void ContractX1d(SharedData_Hip &data, const CeedScalar *U, co
 // 1D transpose tensor contraction x
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractTransposeX1d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractTransposeX1d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
   data.slice[data.t_id_x] = *U;
   __syncthreads();
-  *V = 0.0;
-  if (data.t_id_x < P_1D) {
-    for (CeedInt i = 0; i < Q_1D; i++) {
-      *V += B[data.t_id_x + i * P_1D] * data.slice[i];  // Contract x direction
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z) {
+    *V = 0.0;
+    if (data.t_id_x < P_1D) {
+      for (CeedInt i = 0; i < Q_1D; i++) {
+        *V += B[data.t_id_x + i * P_1D] * data.slice[i];  // Contract x direction
+      }
     }
   }
+
   __syncthreads();
 }
 
@@ -52,9 +57,10 @@ inline __device__ void ContractTransposeX1d(SharedData_Hip &data, const CeedScal
 // 1D interpolate to quadrature points
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void Interp1d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, CeedScalar *__restrict__ r_V) {
+inline __device__ void Interp1d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, CeedScalar *__restrict__ r_V,
+                                const CeedInt num_elem) {
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
-    ContractX1d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_B, r_V + comp);
+    ContractX1d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_B, r_V + comp, num_elem);
   }
 }
 
@@ -63,9 +69,9 @@ inline __device__ void Interp1d(SharedData_Hip &data, const CeedScalar *__restri
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void InterpTranspose1d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B,
-                                         CeedScalar *__restrict__ r_V) {
+                                         CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
-    ContractTransposeX1d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_B, r_V + comp);
+    ContractTransposeX1d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_B, r_V + comp, num_elem);
   }
 }
 
@@ -74,9 +80,9 @@ inline __device__ void InterpTranspose1d(SharedData_Hip &data, const CeedScalar 
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void Grad1d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, const CeedScalar *c_G,
-                              CeedScalar *__restrict__ r_V) {
+                              CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
-    ContractX1d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_G, r_V + comp);
+    ContractX1d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_G, r_V + comp, num_elem);
   }
 }
 
@@ -85,9 +91,9 @@ inline __device__ void Grad1d(SharedData_Hip &data, const CeedScalar *__restrict
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void GradTranspose1d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, const CeedScalar *c_G,
-                                       CeedScalar *__restrict__ r_V) {
+                                       CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
-    ContractTransposeX1d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_G, r_V + comp);
+    ContractTransposeX1d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_G, r_V + comp, num_elem);
   }
 }
 
@@ -95,7 +101,8 @@ inline __device__ void GradTranspose1d(SharedData_Hip &data, const CeedScalar *_
 // 1D quadrature weights
 //------------------------------------------------------------------------------
 template <int Q_1D>
-inline __device__ void Weight1d(SharedData_Hip &data, const CeedScalar *__restrict__ q_weight_1d, CeedScalar *w) {
+inline __device__ void Weight1d(SharedData_Hip &data, const CeedScalar *__restrict__ q_weight_1d, CeedScalar *w, const CeedInt num_elem) {
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z)
   *w = (data.t_id_x < Q_1D) ? q_weight_1d[data.t_id_x] : 0.0;
 }
 
@@ -147,15 +154,18 @@ inline __device__ void ContractY2d(SharedData_Hip &data, const CeedScalar *U, co
 // 2D transpose tensor contract y
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractTransposeY2d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractTransposeY2d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
   data.slice[data.t_id_x + data.t_id_y * T_1D] = *U;
   __syncthreads();
-  *V = 0.0;
-  if (data.t_id_x < Q_1D && data.t_id_y < P_1D) {
-    for (CeedInt i = 0; i < Q_1D; i++) {
-      *V += B[data.t_id_y + i * P_1D] * data.slice[data.t_id_x + i * T_1D];  // Contract y direction
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z) {
+    *V = 0.0;
+    if (data.t_id_x < Q_1D && data.t_id_y < P_1D) {
+      for (CeedInt i = 0; i < Q_1D; i++) {
+        *V += B[data.t_id_y + i * P_1D] * data.slice[data.t_id_x + i * T_1D];  // Contract y direction
+      }
     }
   }
+
   __syncthreads();
 }
 
@@ -163,15 +173,18 @@ inline __device__ void ContractTransposeY2d(SharedData_Hip &data, const CeedScal
 // 2D transpose tensor contract x
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractTransposeX2d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractTransposeX2d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
   data.slice[data.t_id_x + data.t_id_y * T_1D] = *U;
   __syncthreads();
-  *V = 0.0;
-  if (data.t_id_x < P_1D && data.t_id_y < P_1D) {
-    for (CeedInt i = 0; i < Q_1D; i++) {
-      *V += B[data.t_id_x + i * P_1D] * data.slice[i + data.t_id_y * T_1D];  // Contract x direction
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z) {
+    *V = 0.0;
+    if (data.t_id_x < P_1D && data.t_id_y < P_1D) {
+      for (CeedInt i = 0; i < Q_1D; i++) {
+        *V += B[data.t_id_x + i * P_1D] * data.slice[i + data.t_id_y * T_1D];  // Contract x direction
+      }
     }
   }
+
   __syncthreads();
 }
 
@@ -179,14 +192,18 @@ inline __device__ void ContractTransposeX2d(SharedData_Hip &data, const CeedScal
 // 2D transpose tensor contract and add x
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractTransposeAddX2d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractTransposeAddX2d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V,
+                                               const CeedInt num_elem) {
   data.slice[data.t_id_x + data.t_id_y * T_1D] = *U;
   __syncthreads();
-  if (data.t_id_x < P_1D && data.t_id_y < P_1D) {
-    for (CeedInt i = 0; i < Q_1D; i++) {
-      *V += B[data.t_id_x + i * P_1D] * data.slice[i + data.t_id_y * T_1D];  // Contract x direction
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z) {
+    if (data.t_id_x < P_1D && data.t_id_y < P_1D) {
+      for (CeedInt i = 0; i < Q_1D; i++) {
+        *V += B[data.t_id_x + i * P_1D] * data.slice[i + data.t_id_y * T_1D];  // Contract x direction
+      }
     }
   }
+
   __syncthreads();
 }
 
@@ -194,7 +211,8 @@ inline __device__ void ContractTransposeAddX2d(SharedData_Hip &data, const CeedS
 // 2D interpolate to quadrature points
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void InterpTensor2d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
+inline __device__ void InterpTensor2d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, CeedScalar *__restrict__ r_V,
+                                      const CeedInt num_elem) {
   CeedScalar r_t[1];
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
     ContractX2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_B, r_t, num_elem);
@@ -207,11 +225,11 @@ inline __device__ void InterpTensor2d(SharedData_Hip &data, const CeedScalar *__
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void InterpTransposeTensor2d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B,
-                                               CeedScalar *__restrict__ r_V) {
+                                               CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   CeedScalar r_t[1];
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
-    ContractTransposeY2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_B, r_t);
-    ContractTransposeX2d<NUM_COMP, P_1D, Q_1D>(data, r_t, c_B, r_V + comp);
+    ContractTransposeY2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_B, r_t, num_elem);
+    ContractTransposeX2d<NUM_COMP, P_1D, Q_1D>(data, r_t, c_B, r_V + comp, num_elem);
   }
 }
 
@@ -220,13 +238,13 @@ inline __device__ void InterpTransposeTensor2d(SharedData_Hip &data, const CeedS
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void GradTensor2d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, const CeedScalar *c_G,
-                                    CeedScalar *__restrict__ r_V) {
+                                    CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   CeedScalar r_t[1];
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
-    ContractX2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_G, r_t);
-    ContractY2d<NUM_COMP, P_1D, Q_1D>(data, r_t, c_B, r_V + comp + 0 * NUM_COMP);
-    ContractX2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_B, r_t);
-    ContractY2d<NUM_COMP, P_1D, Q_1D>(data, r_t, c_G, r_V + comp + 1 * NUM_COMP);
+    ContractX2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_G, r_t, num_elem);
+    ContractY2d<NUM_COMP, P_1D, Q_1D>(data, r_t, c_B, r_V + comp + 0 * NUM_COMP, num_elem);
+    ContractX2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp, c_B, r_t, num_elem);
+    ContractY2d<NUM_COMP, P_1D, Q_1D>(data, r_t, c_G, r_V + comp + 1 * NUM_COMP, num_elem);
   }
 }
 
@@ -235,13 +253,13 @@ inline __device__ void GradTensor2d(SharedData_Hip &data, const CeedScalar *__re
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void GradTransposeTensor2d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, const CeedScalar *c_G,
-                                             CeedScalar *__restrict__ r_V) {
+                                             CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   CeedScalar r_t[1];
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
-    ContractTransposeY2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp + 0 * NUM_COMP, c_B, r_t);
-    ContractTransposeX2d<NUM_COMP, P_1D, Q_1D>(data, r_t, c_G, r_V + comp);
-    ContractTransposeY2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp + 1 * NUM_COMP, c_G, r_t);
-    ContractTransposeAddX2d<NUM_COMP, P_1D, Q_1D>(data, r_t, c_B, r_V + comp);
+    ContractTransposeY2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp + 0 * NUM_COMP, c_B, r_t, num_elem);
+    ContractTransposeX2d<NUM_COMP, P_1D, Q_1D>(data, r_t, c_G, r_V + comp, num_elem);
+    ContractTransposeY2d<NUM_COMP, P_1D, Q_1D>(data, r_U + comp + 1 * NUM_COMP, c_G, r_t, num_elem);
+    ContractTransposeAddX2d<NUM_COMP, P_1D, Q_1D>(data, r_t, c_B, r_V + comp, num_elem);
   }
 }
 
@@ -249,7 +267,8 @@ inline __device__ void GradTransposeTensor2d(SharedData_Hip &data, const CeedSca
 // 2D quadrature weights
 //------------------------------------------------------------------------------
 template <int Q_1D>
-inline __device__ void WeightTensor2d(SharedData_Hip &data, const CeedScalar *__restrict__ q_weight_1d, CeedScalar *w) {
+inline __device__ void WeightTensor2d(SharedData_Hip &data, const CeedScalar *__restrict__ q_weight_1d, CeedScalar *w, const CeedInt num_elem) {
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z)
   *w = (data.t_id_x < Q_1D && data.t_id_y < Q_1D) ? q_weight_1d[data.t_id_x] * q_weight_1d[data.t_id_y] : 0.0;
 }
 
@@ -261,7 +280,7 @@ inline __device__ void WeightTensor2d(SharedData_Hip &data, const CeedScalar *__
 // 3D tensor contract x
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractX3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractX3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
   CeedScalar r_B[P_1D];
   for (CeedInt i = 0; i < P_1D; i++) {
     r_B[i] = B[i + data.t_id_x * P_1D];
@@ -270,12 +289,15 @@ inline __device__ void ContractX3d(SharedData_Hip &data, const CeedScalar *U, co
   for (CeedInt k = 0; k < P_1D; k++) {
     data.slice[data.t_id_x + data.t_id_y * T_1D] = U[k];
     __syncthreads();
+    for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z) {
     V[k] = 0.0;
     if (data.t_id_x < Q_1D && data.t_id_y < P_1D) {
       for (CeedInt i = 0; i < P_1D; i++) {
         V[k] += r_B[i] * data.slice[i + data.t_id_y * T_1D];  // Contract x direction
       }
+    }      
     }
+
     __syncthreads();
   }
 }
@@ -284,7 +306,7 @@ inline __device__ void ContractX3d(SharedData_Hip &data, const CeedScalar *U, co
 // 3D tensor contract y
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractY3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractY3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
   CeedScalar r_B[P_1D];
   for (CeedInt i = 0; i < P_1D; i++) {
     r_B[i] = B[i + data.t_id_y * P_1D];
@@ -293,12 +315,15 @@ inline __device__ void ContractY3d(SharedData_Hip &data, const CeedScalar *U, co
   for (CeedInt k = 0; k < P_1D; k++) {
     data.slice[data.t_id_x + data.t_id_y * T_1D] = U[k];
     __syncthreads();
+    for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z) {
     V[k] = 0.0;
     if (data.t_id_x < Q_1D && data.t_id_y < Q_1D) {
       for (CeedInt i = 0; i < P_1D; i++) {
         V[k] += r_B[i] * data.slice[data.t_id_x + i * T_1D];  // Contract y direction
       }
+    }      
     }
+
     __syncthreads();
   }
 }
@@ -307,7 +332,8 @@ inline __device__ void ContractY3d(SharedData_Hip &data, const CeedScalar *U, co
 // 3D tensor contract z
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractZ3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractZ3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z)
   for (CeedInt k = 0; k < Q_1D; k++) {
     V[k] = 0.0;
     if (data.t_id_x < Q_1D && data.t_id_y < Q_1D) {
@@ -322,7 +348,8 @@ inline __device__ void ContractZ3d(SharedData_Hip &data, const CeedScalar *U, co
 // 3D transpose tensor contract z
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractTransposeZ3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractTransposeZ3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z)
   for (CeedInt k = 0; k < P_1D; k++) {
     V[k] = 0.0;
     if (data.t_id_x < Q_1D && data.t_id_y < Q_1D) {
@@ -337,7 +364,7 @@ inline __device__ void ContractTransposeZ3d(SharedData_Hip &data, const CeedScal
 // 3D transpose tensor contract y
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractTransposeY3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractTransposeY3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
   CeedScalar r_B[Q_1D];
   for (CeedInt i = 0; i < Q_1D; i++) {
     r_B[i] = B[data.t_id_y + i * P_1D];
@@ -360,7 +387,7 @@ inline __device__ void ContractTransposeY3d(SharedData_Hip &data, const CeedScal
 // 3D transpose tensor contract y
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractTransposeAddY3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractTransposeAddY3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
   CeedScalar r_B[Q_1D];
   for (CeedInt i = 0; i < Q_1D; i++) {
     r_B[i] = B[data.t_id_y + i * P_1D];
@@ -382,7 +409,7 @@ inline __device__ void ContractTransposeAddY3d(SharedData_Hip &data, const CeedS
 // 3D transpose tensor contract x
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractTransposeX3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractTransposeX3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
   CeedScalar r_B[Q_1D];
   for (CeedInt i = 0; i < Q_1D; i++) {
     r_B[i] = B[data.t_id_x + i * P_1D];
@@ -405,7 +432,7 @@ inline __device__ void ContractTransposeX3d(SharedData_Hip &data, const CeedScal
 // 3D transpose tensor contract add x
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void ContractTransposeAddX3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V) {
+inline __device__ void ContractTransposeAddX3d(SharedData_Hip &data, const CeedScalar *U, const CeedScalar *B, CeedScalar *V, const CeedInt num_elem) {
   CeedScalar r_B[Q_1D];
   for (CeedInt i = 0; i < Q_1D; i++) {
     r_B[i] = B[data.t_id_x + i * P_1D];
@@ -427,7 +454,7 @@ inline __device__ void ContractTransposeAddX3d(SharedData_Hip &data, const CeedS
 // 3D interpolate to quadrature points
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
-inline __device__ void InterpTensor3d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, CeedScalar *__restrict__ r_V) {
+inline __device__ void InterpTensor3d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   CeedScalar r_t1[T_1D];
   CeedScalar r_t2[T_1D];
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
@@ -442,7 +469,7 @@ inline __device__ void InterpTensor3d(SharedData_Hip &data, const CeedScalar *__
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void InterpTransposeTensor3d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B,
-                                               CeedScalar *__restrict__ r_V) {
+                                               CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   CeedScalar r_t1[T_1D];
   CeedScalar r_t2[T_1D];
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
@@ -457,7 +484,7 @@ inline __device__ void InterpTransposeTensor3d(SharedData_Hip &data, const CeedS
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void GradTensor3d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, const CeedScalar *c_G,
-                                    CeedScalar *__restrict__ r_V) {
+                                    CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   CeedScalar r_t1[T_1D];
   CeedScalar r_t2[T_1D];
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
@@ -478,7 +505,7 @@ inline __device__ void GradTensor3d(SharedData_Hip &data, const CeedScalar *__re
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void GradTransposeTensor3d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, const CeedScalar *c_G,
-                                             CeedScalar *__restrict__ r_V) {
+                                             CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   CeedScalar r_t1[T_1D];
   CeedScalar r_t2[T_1D];
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
@@ -499,7 +526,7 @@ inline __device__ void GradTransposeTensor3d(SharedData_Hip &data, const CeedSca
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void GradTensorCollocated3d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B, const CeedScalar *c_G,
-                                              CeedScalar *__restrict__ r_V) {
+                                              CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   CeedScalar r_t1[T_1D];
   CeedScalar r_t2[T_1D];
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
@@ -517,7 +544,7 @@ inline __device__ void GradTensorCollocated3d(SharedData_Hip &data, const CeedSc
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D, int Q_1D>
 inline __device__ void GradTransposeTensorCollocated3d(SharedData_Hip &data, const CeedScalar *__restrict__ r_U, const CeedScalar *c_B,
-                                                       const CeedScalar *c_G, CeedScalar *__restrict__ r_V) {
+                                                       const CeedScalar *c_G, CeedScalar *__restrict__ r_V, const CeedInt num_elem) {
   CeedScalar r_t1[T_1D];
   CeedScalar r_t2[T_1D];
   for (CeedInt comp = 0; comp < NUM_COMP; comp++) {
@@ -534,7 +561,7 @@ inline __device__ void GradTransposeTensorCollocated3d(SharedData_Hip &data, con
 // 3D quadrature weights
 //------------------------------------------------------------------------------
 template <int Q_1D>
-inline __device__ void WeightTensor3d(SharedData_Hip &data, const CeedScalar *__restrict__ q_weight_1d, CeedScalar *w) {
+inline __device__ void WeightTensor3d(SharedData_Hip &data, const CeedScalar *__restrict__ q_weight_1d, CeedScalar *w, const CeedInt num_elem) {
   const bool       quad = (data.t_id_x < Q_1D && data.t_id_y < Q_1D);
   const CeedScalar pw   = quad ? q_weight_1d[data.t_id_x] * q_weight_1d[data.t_id_y] : 0.0;
   for (CeedInt q = 0; q < Q_1D; q++) {

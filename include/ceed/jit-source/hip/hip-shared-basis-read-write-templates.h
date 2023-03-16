@@ -29,8 +29,9 @@ inline __device__ void loadMatrix(const CeedScalar *d_B, CeedScalar *B) {
 // E-vector -> single element
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D>
-inline __device__ void ReadElementStrided1d(SharedData_Hip &data, const CeedInt elem, const CeedInt strides_node, const CeedInt strides_comp,
-                                            const CeedInt strides_elem, const CeedScalar *__restrict__ d_u, CeedScalar *r_u) {
+inline __device__ void ReadElementStrided1d(SharedData_Hip &data, const CeedInt strides_node, const CeedInt strides_comp,
+                                            const CeedInt strides_elem, const CeedScalar *__restrict__ d_u, CeedScalar *r_u, const CeedInt num_elem) {
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z)
   if (data.t_id_x < P_1D) {
     const CeedInt node = data.t_id_x;
     const CeedInt ind  = node * strides_node + elem * strides_elem;
@@ -44,8 +45,9 @@ inline __device__ void ReadElementStrided1d(SharedData_Hip &data, const CeedInt 
 // Single element -> E-vector
 //------------------------------------------------------------------------------
 template <int NUM_COMP, int P_1D>
-inline __device__ void WriteElementStrided1d(SharedData_Hip &data, const CeedInt elem, const CeedInt strides_node, const CeedInt strides_comp,
-                                             const CeedInt strides_elem, const CeedScalar *r_v, CeedScalar *d_v) {
+inline __device__ void WriteElementStrided1d(SharedData_Hip &data, const CeedInt strides_node, const CeedInt strides_comp,
+                                             const CeedInt strides_elem, const CeedScalar *r_v, CeedScalar *d_v, const CeedInt num_elem) {
+  for (CeedInt elem = blockIdx.x * blockDim.z + threadIdx.z; elem < num_elem; elem += gridDim.x * blockDim.z)
   if (data.t_id_x < P_1D) {
     const CeedInt node = data.t_id_x;
     const CeedInt ind  = node * strides_node + elem * strides_elem;
