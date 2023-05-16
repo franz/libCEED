@@ -54,6 +54,8 @@ UNDERSCORE ?= 1
 # Verbose mode, V or VERBOSE
 V ?= $(VERBOSE)
 
+FORTRAN ?= $(and $(FC), 1)
+
 # MFEM_DIR env variable should point to sibling directory
 ifneq ($(wildcard ../mfem/libmfem.*),)
   MFEM_DIR ?= ../mfem
@@ -212,13 +214,17 @@ TEST_BACKENDS := /cpu/self/tmpl /cpu/self/tmpl/sub
 
 # Tests
 tests.c   := $(sort $(wildcard tests/t[0-9][0-9][0-9]-*.c))
-tests.f   := $(if $(FC),$(sort $(wildcard tests/t[0-9][0-9][0-9]-*.f90)))
+tests.f   := $(if $(FORTRAN),$(sort $(wildcard tests/t[0-9][0-9][0-9]-*.f90)))
 tests     := $(tests.c:tests/%.c=$(OBJDIR)/%$(EXE_SUFFIX))
 ctests    := $(tests)
+ifeq ($(FORTRAN), 1)
 tests     += $(tests.f:tests/%.f90=$(OBJDIR)/%$(EXE_SUFFIX))
+endif
+
+
 # Examples
 examples.c := $(sort $(wildcard examples/ceed/*.c))
-examples.f := $(if $(FC),$(sort $(wildcard examples/ceed/*.f)))
+examples.f := $(if $(FORTRAN),$(sort $(wildcard examples/ceed/*.f)))
 examples  := $(examples.c:examples/ceed/%.c=$(OBJDIR)/%$(EXE_SUFFIX))
 examples  += $(examples.f:examples/ceed/%.f=$(OBJDIR)/%$(EXE_SUFFIX))
 # MFEM Examples
@@ -304,6 +310,7 @@ info:
 	$(info AFLAGS        = $(AFLAGS))
 	$(info ASAN          = $(or $(ASAN),(empty)))
 	$(info VERBOSE       = $(or $(V),(empty)) [verbose=$(if $(V),on,off)])
+	$(info FORTRAN       = $(or $(FORTRAN),(empty)))
 	$(info ------------------------------------)
 	$(info MEMCHK_STATUS = $(MEMCHK_STATUS)$(call backend_status,$(MEMCHK_BACKENDS)))
 	$(info AVX_STATUS    = $(AVX_STATUS)$(call backend_status,$(AVX_BACKENDS)))
@@ -779,7 +786,7 @@ print-% :
 #   make configure CC=/path/to/other/clang
 
 # All variables to consider for caching
-CONFIG_VARS = CC CXX FC NVCC NVCC_CXX HIPCC \
+CONFIG_VARS = CC CXX FC NVCC NVCC_CXX HIPCC FORTRAN \
 	OPT CFLAGS CPPFLAGS CXXFLAGS FFLAGS NVCCFLAGS HIPCCFLAGS \
 	AR ARFLAGS LDFLAGS LDLIBS LIBCXX SED \
 	MAGMA_DIR OCCA_DIR XSMM_DIR CUDA_DIR CUDA_ARCH MFEM_DIR PETSC_DIR NEK5K_DIR ROCM_DIR HIP_DIR HIP_ARCH
