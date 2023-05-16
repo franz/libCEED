@@ -638,6 +638,12 @@ search ?= t ex
 realsearch = $(search:%=%%)
 matched = $(foreach pattern,$(realsearch),$(filter $(OBJDIR)/$(pattern),$(tests) $(allexamples)))
 
+ifneq (,$(exclude))
+  realex = $(exclude:%=%%)
+  matched := $(foreach pattern,$(realex),$(filter-out $(OBJDIR)/$(pattern),$(matched)))
+endif
+
+
 # Test core libCEED
 test : $(matched:$(OBJDIR)/%=run-%)
 
