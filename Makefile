@@ -155,9 +155,9 @@ NVCCFLAGS ?= -ccbin $(CXX) -Xcompiler "$(OPT)" -Xcompiler -fPIC
 ifneq ($(CUDA_ARCH),)
   NVCCFLAGS += -arch=$(CUDA_ARCH)
 endif
-HIPCCFLAGS ?= $(filter-out $(OMP_SIMD_FLAG),$(OPT)) -fPIC -munsafe-fp-atomics
+HIPCCFLAGS ?= $(filter-out $(OMP_SIMD_FLAG),$(OPT)) -fPIC
 ifneq ($(HIP_ARCH),)
-  HIPCCFLAGS += --amdgpu-target=$(HIP_ARCH)
+  HIPCCFLAGS += --amdgpu-target=$(HIP_ARCH) -munsafe-fp-atomics
 endif
 FFLAGS ?= $(OPT) $(FFLAGS.$(FC_VENDOR))
 
@@ -437,7 +437,8 @@ HIP_BACKENDS = /gpu/hip/shared # /gpu/hip/shared /gpu/hip/gen
 ifneq ($(HIP_LIB_DIR),)
   $(libceeds) : HIPCCFLAGS += -I./include
   ifneq ($(CXX), $(HIPCC))
-    CPPFLAGS += $(filter-out -x hip --offload=spirv64 -nohipwrapperinc,$(shell $(HIP_DIR)/bin/hipconfig -C))
+    # cannot use CPPFLAGS here, because CPPFLAGS is also used in the commands to Fortran compiler
+    HIPCCFLAGS += $(filter-out --offload=spirv64 -nohipwrapperinc,$(shell $(HIP_DIR)/bin/hipconfig -C))
   endif
   $(libceeds) : CPPFLAGS += -I$(HIP_DIR)/include
   OPENCL_LIB_DIR = /soft/libraries/khronos/loader/master-2022.05.18/lib64
@@ -536,10 +537,10 @@ $(libceed.a) : $(call weak_last,$(libceed.o)) | $$(@D)/.DIR
 	$(call quiet,AR) $(ARFLAGS) $@ $^
 
 $(OBJDIR)/%.o : $(CURDIR)/%.c | $$(@D)/.DIR
-	$(call quiet,CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $(abspath $<)
+	$(call quiet,CC) $(CPPFLAGS) $(HIPCCFLAGS) $(CFLAGS) -c -o $@ $(abspath $<)
 
 $(OBJDIR)/%.o : $(CURDIR)/%.cpp | $$(@D)/.DIR
-	$(call quiet,CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $(abspath $<)
+	$(call quiet,CXX) $(CPPFLAGS) $(HIPCCFLAGS) $(CXXFLAGS) -c -o $@ $(abspath $<)
 
 $(OBJDIR)/%.o : $(CURDIR)/%.cu | $$(@D)/.DIR
 	$(call quiet,NVCC) $(filter-out -Wno-unused-function, $(CPPFLAGS)) $(NVCCFLAGS) -c -o $@ $(abspath $<)
