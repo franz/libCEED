@@ -440,13 +440,24 @@ ifneq ($(HIP_LIB_DIR),)
     # cannot use CPPFLAGS here, because CPPFLAGS is also used in the commands to Fortran compiler
     HIPCCFLAGS += $(filter-out --offload=spirv64 -nohipwrapperinc,$(shell $(HIP_DIR)/bin/hipconfig -C))
   endif
+
   $(libceeds) : CPPFLAGS += -I$(HIP_DIR)/include
-  OPENCL_LIB_DIR = /soft/libraries/khronos/loader/master-2022.05.18/lib64
-  ZE_LIB_DIR = /soft/restricted/CNDA/emb/intel-gpu-umd/20221031.1-pvc-prq-66/driver/lib64
-  HIPBLAS_LIBS = $(if $(filter amdhip64,$(HIP_LIB)),-lhipblas,-L$(HIPBLAS_LIB_DIR) -lhipblas)
-  PKG_LIBS += -L$(abspath $(HIP_LIB_DIR)) -l$(HIP_LIB) $(HIPBLAS_LIBS) $(if $(filter CHIP,$(HIP_LIB)),-L$(OPENCL_LIB_DIR) -lOpenCL -L$(ZE_LIB_DIR) -lze_loader)
-  # extracted from hipconfig
-  # PKG_LIBS += -L/home/pvelesko/space/install/HIP/clang15/chip-spv-testing/lib -lCHIP -L/soft/libraries/khronos/loader/master-2022.05.18/lib64 -lOpenCL -L/soft/restricted/CNDA/emb/intel-gpu-umd/20221031.1-pvc-prq-66/driver/lib64 -lze_loader -Wl,-rpath,/home/pvelesko/space/install/HIP/clang15/chip-spv-testing/lib
+  ifneq ($(OPENCL_LIB_DIR),)
+    OPENCL_LDFLAGS := -L$(OPENCL_LIB_DIR) -lOpenCL
+  else
+    OPENCL_LDFLAGS := -lOpenCL
+  endif
+  ifneq ($(ZE_LIB_DIR),)
+    ZE_LDFLAGS := -L$(ZE_LIB_DIR) -lze_loader
+  else
+    ZE_LDFLAGS := -lze_loader
+  endif
+  ifneq ($(HIPBLAS_LIB_DIR),)
+    HIPBLAS_LDFLAGS := -L$(HIPBLAS_LIB_DIR) -lhipblas
+  else
+    HIPBLAS_LDFLAGS := -lhipblas
+  endif
+  PKG_LIBS += -L$(abspath $(HIP_LIB_DIR)) -l$(HIP_LIB) $(HIPBLAS_LDFLAGS) $(if $(filter CHIP,$(HIP_LIB)),$(OPENCL_LDFLAGS) $(ZE_LDFLAGS))
   LIBCEED_CONTAINS_CXX = 1
   libceed.c     += interface/ceed-hip.c
   libceed.c     += $(hip.c) $(hip-ref.c) $(hip-shared.c) $(hip-gen.c)
